@@ -1,0 +1,24 @@
+:root {
+  --font-sans: 'Figtree', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@keyframes wcPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.82); } }
+@keyframes wcSpin { to { transform: rotate(360deg); } }
+@keyframes wcFade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes wcPop { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: none; } }
+
+.wc-scroll::-webkit-scrollbar { height: 9px; width: 9px; }
+.wc-scroll::-webkit-scrollbar-thumb { background: rgba(128,128,128,.32); border-radius: 9999px; }
+.wc-scroll::-webkit-scrollbar-track { background: transparent; }
+
+button { font-family: inherit; }
+input { font-family: inherit; }
+a { color: inherit; }

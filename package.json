@@ -1,0 +1,25 @@
+{
+  "name": "wc26-tracker",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "FIFA World Cup 2026 Tracker — live/today dashboard, schedule, computed standings, knockout bracket, and golden-boot leaderboard.",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "serve -s dist -l ${PORT:-3000}"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "serve": "^14.2.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.11"
+  }
+}
