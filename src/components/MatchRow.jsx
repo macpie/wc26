@@ -7,8 +7,8 @@ function TeamMini({ id, align, fav }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexDirection: align === 'right' ? 'row-reverse' : 'row', minWidth: 0 }}>
       <Badge id={id} size={26} />
-      <span style={{ fontWeight: fav ? 800 : 650, fontSize: 14, color: fav ? th.accent : th.tx, whiteSpace: 'nowrap' }}>{T.name}</span>
-      {fav ? <span style={{ color: th.accent, fontSize: 11 }}>★</span> : null}
+      <span style={{ fontWeight: fav ? 800 : 650, fontSize: 14, color: fav ? th.accent : th.tx, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{T.name}</span>
+      {fav ? <span style={{ color: th.accent, fontSize: 11, flex: '0 0 auto' }}>★</span> : null}
     </div>
   )
 }
