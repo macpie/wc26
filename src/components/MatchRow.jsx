@@ -17,7 +17,7 @@ export function MatchRow({ m }) {
   const { th, favs, mScore, openMatch } = useStore()
   const s = mScore(m)
   const played = s.hs != null
-  const clickable = played || m.status === 'LIVE'
+  const clickable = true // every match opens (played → match center, upcoming → preview)
   const isLive = m.status === 'LIVE'
   const winnerH = played && s.hs > s.as
   const winnerA = played && s.as > s.hs

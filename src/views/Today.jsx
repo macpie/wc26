@@ -57,8 +57,7 @@ function FavCard({ id }) {
       </div>
       {m ? (
         <button onClick={() => openMatch(m)} style={{
-          width: '100%', font: 'inherit', textAlign: 'left',
-          cursor: (mScore(m).hs != null || m.status === 'LIVE') ? 'pointer' : 'default',
+          width: '100%', font: 'inherit', textAlign: 'left', cursor: 'pointer',
           border: 'none', background: th.sf2, borderRadius: 11, padding: '9px 11px',
         }}>
           <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: m.status === 'LIVE' ? th.live : th.faint, marginBottom: 4 }}>

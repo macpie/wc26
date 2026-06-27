@@ -44,3 +44,22 @@ export function GoalIcon({ color, size = 15 }) {
     </svg>
   )
 }
+
+// Booking card (yellow / red).
+export function CardIcon({ color, size = 13 }) {
+  return (
+    <svg width={size * 0.72} height={size} viewBox="0 0 13 18">
+      <rect x="1" y="1" width="11" height="16" rx="2" fill={color} />
+    </svg>
+  )
+}
+
+// Substitution: green up arrow (on) over red down arrow (off).
+export function SubIcon({ size = 14, on = '#1F9D55', off = '#E5202B' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 21V7M8 7l-3.5 3.5M8 7l3.5 3.5" stroke={on} />
+      <path d="M16 3v14M16 17l-3.5-3.5M16 17l3.5-3.5" stroke={off} />
+    </svg>
+  )
+}

@@ -35,7 +35,7 @@ function LiveKoCell({ m }) {
   const s = mScore(m)
   const played = s.hs != null
   const isLive = m.status === 'LIVE'
-  const clickable = played || isLive
+  const clickable = played || isLive || (m.hKnown && m.aKnown) // decided matchups open a preview
   const favH = m.hKnown && favs.includes(m.h), favA = m.aKnown && favs.includes(m.a)
   const fav = favH || favA
 

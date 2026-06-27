@@ -80,21 +80,18 @@ export function StoreProvider({ children }) {
   const standings = (g) => calcStandings(D, g, mScore)
   const thirdRace = () => calcThirdRace(D, mScore)
 
-  // Goal events for the open match come from the fetched ESPN match detail.
-  function events(m) {
-    return (detail && detail.id === m.id && detail.events) ? detail.events.slice().sort((a, b) => a.min - b.min) : []
-  }
   // Is the detail for the currently-open match loaded yet?
   const detailReady = (m) => !!(detail && detail.id === m.id)
 
   // ---- match modal ----
+  // Any match can be opened — played/live show the full match center, upcoming show a
+  // preview (form, head-to-head, broadcasts) from the same detail call.
   const openMatch = (m) => {
-    if (m && (m.hs != null || m.status === 'LIVE')) {
-      setSel(m.id); setModalTab('summary'); setDetail(null)
-      WC_ESPN.detail(m.id)
-        .then(d => setSel(cur => { if (cur === m.id) setDetail(d); return cur }))
-        .catch(() => {})
-    }
+    if (!m) return
+    setSel(m.id); setModalTab('auto'); setDetail(null)
+    WC_ESPN.detail(m.id)
+      .then(d => setSel(cur => { if (cur === m.id) setDetail(d); return cur }))
+      .catch(() => {})
   }
   const closeMatch = () => setSel(null)
 
@@ -158,7 +155,7 @@ export function StoreProvider({ children }) {
     // state
     view, dark, favs, notify, notifySupported, sel, modalTab, filter, source, data, detail,
     // accessors
-    D, th, t, mScore, standings, thirdRace, events, detailReady,
+    D, th, t, mScore, standings, thirdRace, detailReady,
     // actions
     setView, toggleDark, toggleFav, toggleNotify, setFilter, setModalTab,
     openMatch, closeMatch, reload: loadLive,

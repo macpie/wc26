@@ -201,8 +201,32 @@ export async function refreshLive(matches) {
 
 const POS_RANK = { G: 0, GK: 0, D: 1, DF: 1, M: 2, MF: 2, F: 3, FW: 3 }
 
+// Classify a keyEvent type into the kinds the timeline renders.
+function eventKind(text) {
+  const T = String(text || '')
+  if (/Own Goal/i.test(T)) return { kind: 'goal', note: 'OG' }
+  if (/Goal/i.test(T)) return { kind: 'goal', note: /Penalty/i.test(T) ? 'pen' : (/Header/i.test(T) ? 'header' : null) }
+  if (/Yellow.?Red|Second Yellow/i.test(T)) return { kind: 'red', note: '2nd yellow' }
+  if (/Red Card/i.test(T)) return { kind: 'red', note: null }
+  if (/Yellow Card/i.test(T)) return { kind: 'yellow', note: null }
+  if (/Substitution/i.test(T)) return { kind: 'sub', note: null }
+  if (/Penalty/i.test(T)) return { kind: 'pen-miss', note: /Saved/i.test(T) ? 'saved' : 'missed' }
+  if (/^Half.?time$/i.test(T)) return { kind: 'marker', note: 'Half-time' }
+  if (/Full.?time|End Regular Time/i.test(T)) return { kind: 'marker', note: 'Full-time' }
+  return null
+}
+
+const fmtYear = iso => { const d = iso ? new Date(iso) : null; return (d && !isNaN(d)) ? String(d.getFullYear()) : '' }
+
+// Sortable minute from a clock like "45'", "45'+2'", "90'+4'" → 45, 45.02, 90.04.
+function clockMin(clock) {
+  const mm = String(clock || '').match(/(\d+)(?:\D+(\d+))?/)
+  if (!mm) return 0
+  return (parseInt(mm[1], 10) || 0) + (mm[2] ? parseInt(mm[2], 10) / 100 : 0)
+}
+
 export async function detail(matchId) {
-  const out = { id: String(matchId), events: null, lineups: null, stats: null }
+  const out = { id: String(matchId), events: null, lineups: null, stats: null, commentary: null, gameInfo: null, form: null, h2h: null, broadcasts: null }
   let sj
   try { sj = await getJSON(SITE + '/summary?event=' + matchId) } catch (e) { return out }
 
@@ -210,20 +234,24 @@ export async function detail(matchId) {
   const comp = (sj.header && sj.header.competitions && sj.header.competitions[0]) || {}
   ;((comp.competitors) || []).forEach(c => { const t = c.team || {}; if (t.id != null) idToCode[t.id] = code3(t) })
   const codeFor = (team) => (team && team.id != null && idToCode[team.id]) || code3(team)
+  const nameOfP = (p) => (p && p.athlete && (p.athlete.displayName || p.athlete.shortName)) || ''
 
-  // goals (with assists)
-  const goals = (sj.keyEvents || []).filter(e => e.type && e.type.text === 'Goal')
-  out.events = goals.map(e => {
-    const min = parseInt(String((e.clock && e.clock.displayValue) || '').replace(/[^0-9]/g, ''), 10) || 0
+  // full event timeline: goals, cards, subs, penalties, half/full-time markers
+  const events = []
+  ;(sj.keyEvents || []).forEach(e => {
+    const info = eventKind(e.type && e.type.text)
+    if (!info) return
+    const clock = (e.clock && e.clock.displayValue) || ''
+    const min = clockMin(clock)
     const parts = e.participants || []
-    const scorer = parts.find(p => /scorer/i.test((p.type && p.type.text) || '')) || parts[0] || {}
-    const assist = parts.find(p => /assist/i.test((p.type && p.type.text) || '')) || (parts[1] && parts[1] !== scorer ? parts[1] : null)
-    return {
-      min, team: codeFor(e.team), type: 'goal',
-      name: (scorer.athlete && scorer.athlete.displayName) || '',
-      assist: (assist && assist.athlete && assist.athlete.displayName) || '',
-    }
-  }).sort((a, b) => a.min - b.min)
+    // markers sort after same-minute play (half-time just after first-half stoppage; full-time last)
+    if (info.kind === 'marker') { events.push({ min: info.note === 'Half-time' ? 45.9 : 999, clock: '', kind: 'marker', note: info.note }); return }
+    let name = nameOfP(parts[0]), name2 = ''
+    if (info.kind === 'sub') { name = nameOfP(parts[0]); name2 = nameOfP(parts[1]) } // in / out
+    else if (info.kind === 'goal') { name2 = nameOfP(parts[1]) } // assist
+    events.push({ min, clock, team: codeFor(e.team), kind: info.kind, note: info.note, name, name2 })
+  })
+  if (events.length) out.events = events.sort((a, b) => a.min - b.min)
 
   // lineups (starting XI, ordered GK→DF→MF→FW for clean pitch rows)
   const lineups = {}
@@ -231,6 +259,7 @@ export async function detail(matchId) {
     const code = codeFor(r.team)
     if (!code) return
     const starters = (r.roster || []).filter(p => p.starter)
+    if (!starters.length) return
     starters.sort((a, b) => (POS_RANK[(a.position && a.position.abbreviation) || ''] ?? 4) - (POS_RANK[(b.position && b.position.abbreviation) || ''] ?? 4))
     lineups[code] = {
       formation: r.formation || '4-3-3',
@@ -239,15 +268,53 @@ export async function detail(matchId) {
   })
   if (Object.keys(lineups).length) out.lineups = lineups
 
-  // stats (paired bars)
+  // stats (raw boxscore map per team; the view picks which to show)
   const stats = {}
   ;((sj.boxscore && sj.boxscore.teams) || []).forEach(tm => {
     const code = codeFor(tm.team)
     if (!code) return
     const map = {}; (tm.statistics || []).forEach(s => { map[s.name] = s.displayValue })
-    stats[code] = map
+    if (Object.keys(map).length) stats[code] = map
   })
   if (Object.keys(stats).length) out.stats = stats
+
+  // play-by-play commentary (most recent first)
+  const comm = (sj.commentary || []).map(c => ({ time: (c.time && c.time.displayValue) || '', text: c.text || '' })).filter(c => c.text)
+  if (comm.length) out.commentary = comm.reverse()
+
+  // game info: attendance + referee
+  const gi = sj.gameInfo || {}
+  const ref = (gi.officials || []).find(o => (o.position && o.position.name) === 'Referee') || (gi.officials || [])[0]
+  out.gameInfo = { attendance: gi.attendance || null, referee: ref ? ref.displayName : null }
+
+  // recent form (W/D/L) per team
+  const form = {}
+  ;(sj.lastFiveGames || []).forEach(g => {
+    const tid = g.team && g.team.id
+    const code = tid != null && idToCode[tid]
+    if (!code) return
+    form[code] = (g.events || []).map(ev => {
+      const home = String(ev.homeTeamId) === String(tid)
+      const gf = Number(home ? ev.homeTeamScore : ev.awayTeamScore)
+      const ga = Number(home ? ev.awayTeamScore : ev.homeTeamScore)
+      return { r: gf > ga ? 'W' : gf < ga ? 'L' : 'D', score: gf + '-' + ga }
+    })
+  })
+  if (Object.keys(form).length) out.form = form
+
+  // head-to-head history between the two teams
+  const h2hEvents = (sj.headToHeadGames && sj.headToHeadGames[0] && sj.headToHeadGames[0].events) || []
+  if (h2hEvents.length) {
+    out.h2h = h2hEvents.map(ev => ({
+      year: fmtYear(ev.gameDate),
+      home: idToCode[ev.homeTeamId] || null, away: idToCode[ev.awayTeamId] || null,
+      hs: Number(ev.homeTeamScore), as: Number(ev.awayTeamScore),
+    }))
+  }
+
+  // broadcasts ("where to watch")
+  const bc = (sj.broadcasts || []).map(x => x.shortName || (x.media && x.media.shortName) || x.name).filter(Boolean)
+  if (bc.length) out.broadcasts = [...new Set(bc)]
 
   return out
 }
