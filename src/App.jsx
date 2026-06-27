@@ -6,7 +6,7 @@ import { Today } from './views/Today.jsx'
 import { Matches } from './views/Matches.jsx'
 import { Groups } from './views/Groups.jsx'
 import { Bracket } from './views/Bracket.jsx'
-import { Scorers } from './views/Scorers.jsx'
+import { Stats } from './views/Stats.jsx'
 
 function Splash({ children }) {
   const { th } = useStore()
@@ -47,7 +47,7 @@ export default function App() {
     case 'matches': body = <Matches />; break
     case 'groups': body = <Groups />; break
     case 'bracket': body = <Bracket />; break
-    case 'scorers': body = <Scorers />; break
+    case 'stats': body = <Stats />; break
     default: body = <Today />
   }
 

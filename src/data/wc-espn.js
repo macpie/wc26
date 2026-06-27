@@ -97,23 +97,45 @@ function mapMatch(ev, codeToGroup, idToCode, TEAMS, CRESTS) {
   }
 }
 
-async function loadScorers(idToCode) {
+// Tournament leaderboards. Each category keeps the top LEADER_TOP players so the UI can
+// show 5 and expand. Athlete names are resolved once (deduped across categories).
+const LEADER_CATS = ['goals', 'assists', 'shotsOnTarget', 'totalShots', 'saves', 'foulsCommitted', 'foulsSuffered', 'yellowCards', 'redCards', 'accuratePasses']
+const LEADER_TOP = 15
+
+function teamCodeFromRef(ref, idToCode) {
+  if (!ref) return 'UNK'
+  const idp = ref.split('/teams/')[1]
+  const tid = idp ? idp.split('?')[0].replace(/\/$/, '') : null
+  return (tid && idToCode[tid]) || 'UNK'
+}
+
+async function loadLeaders(idToCode) {
   const lj = await getJSON(CORE + '/seasons/' + SEASON + '/types/1/leaders')
-  const cat = (lj.categories || []).find(c => c.name === 'goalsLeaders')
-  if (!cat || !cat.leaders) return []
-  const top = cat.leaders.slice(0, 20)
-  const rows = await Promise.all(top.map(async (ld) => {
-    let name = 'Unknown'
-    try { if (ld.athlete && ld.athlete.$ref) { const aj = await getJSON(ld.athlete.$ref); name = aj.displayName || aj.fullName || name } } catch (e) {}
-    let code = 'UNK'
-    const ref = ld.team && ld.team.$ref
-    if (ref) { const id = ref.split('/teams/')[1]; const tid = id ? id.split('?')[0].replace(/\/$/, '') : null; if (tid && idToCode[tid]) code = idToCode[tid] }
-    const goals = Number(ld.value) || 0
-    const am = /A:\s*(\d+)/.exec(ld.shortDisplayValue || '')
-    const assists = am ? Number(am[1]) : 0
-    return { name, team: code, goals, assists, pens: 0, mins: 0 }
+  const byName = {}
+  ;(lj.categories || []).forEach(c => { byName[c.name] = c.leaders || [] })
+
+  // pick top-N per category, collecting unique athlete refs to resolve once
+  const picks = {}, refSet = new Set()
+  LEADER_CATS.forEach(key => {
+    picks[key] = (byName[key] || []).slice(0, LEADER_TOP).map(ld => {
+      const ref = ld.athlete && ld.athlete.$ref
+      if (ref) refSet.add(ref)
+      return { value: Number(ld.value) || 0, team: teamCodeFromRef(ld.team && ld.team.$ref, idToCode), ref }
+    })
+  })
+
+  const names = {}
+  await Promise.all([...refSet].map(async ref => {
+    try { const aj = await getJSON(ref); names[ref] = aj.displayName || aj.fullName || '' } catch (e) { names[ref] = '' }
   }))
-  return rows.filter(p => p.goals > 0 && p.team !== 'UNK').sort((a, b) => b.goals - a.goals || b.assists - a.assists)
+
+  const LEADERS = {}
+  LEADER_CATS.forEach(key => {
+    LEADERS[key] = picks[key]
+      .map(p => ({ name: names[p.ref] || '', team: p.team, value: p.value }))
+      .filter(p => p.name && p.team !== 'UNK' && p.value > 0)
+  })
+  return LEADERS
 }
 
 export async function load() {
@@ -148,15 +170,15 @@ export async function load() {
     MATCHES.forEach(m => { if (m.g && m.g !== '?') { GROUPS[m.g] = GROUPS[m.g] || []; [m.h, m.a].forEach(code => { if (!GROUPS[m.g].includes(code)) GROUPS[m.g].push(code) }) } })
   }
 
-  let SCORERS = []
-  try { SCORERS = await loadScorers(idToCode) } catch (e) { /* leave empty */ }
+  let LEADERS = {}
+  try { LEADERS = await loadLeaders(idToCode) } catch (e) { /* leave empty */ }
 
   return {
     TEAMS,
     CRESTS,
     GROUPS,
     MATCHES,
-    SCORERS,
+    LEADERS,
     HOST,
     TODAY: fmtDate(new Date()),
   }

@@ -2,7 +2,7 @@ import { useStore } from '../store.jsx'
 import { txtOn } from '../lib/util.js'
 
 // Team badge: real crest (live mode) or a brand-colored circle with the 3-letter code.
-// Clicking it toggles following that team (unless `follow` is false, e.g. in Scorers, or
+// Clicking it toggles following that team (unless `follow` is false, e.g. in the Stats view, or
 // the slot is a knockout placeholder rather than a real qualified team).
 export function Badge({ id, size = 30, follow = true }) {
   const { t, D, th, favs, toggleFav } = useStore()
