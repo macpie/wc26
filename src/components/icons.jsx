@@ -44,6 +44,7 @@ export function TabIcon({ id, size = 22 }) {
         </svg>
       )
     case 'groups': // standings table
+    case 'table': // league table
       return (
         <svg {...p}>
           <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />

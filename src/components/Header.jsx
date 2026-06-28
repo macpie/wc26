@@ -1,10 +1,73 @@
+import { useState, useEffect } from 'react'
 import { useStore } from '../store.jsx'
 import { BallMark, SunIcon, MoonIcon, BellIcon, TabIcon } from './icons.jsx'
 
-const TABS = [['today', 'Today'], ['matches', 'Matches'], ['bracket', 'Bracket'], ['groups', 'Groups'], ['stats', 'Stats'], ['teams', 'Teams']]
+// World Cup keeps its Groups + Bracket tabs; club leagues get a single Table tab instead.
+const TABS_GROUPED = [['today', 'Today'], ['matches', 'Matches'], ['bracket', 'Bracket'], ['groups', 'Groups'], ['stats', 'Stats'], ['teams', 'Teams']]
+const TABS_LEAGUE = [['today', 'Today'], ['matches', 'Matches'], ['table', 'Table'], ['stats', 'Stats'], ['teams', 'Teams']]
+
+// Custom league dropdown: each row shows the league name on the left and its country on
+// the right. (A native <select> can't lay options out this way.)
+function LeagueMenu() {
+  const { th, dark, league, leagues, setLeague } = useStore()
+  const [open, setOpen] = useState(false)
+  const cur = leagues.find(l => l.slug === league) || leagues[0]
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = e => { if (e.key === 'Escape') setOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open])
+
+  return (
+    <div style={{ position: 'relative', flex: '0 1 auto', minWidth: 0 }}>
+      <button onClick={() => setOpen(o => !o)} aria-haspopup="listbox" aria-expanded={open} style={{
+        display: 'inline-flex', alignItems: 'center', gap: 7, maxWidth: 180, width: '100%',
+        font: 'inherit', fontSize: 13, fontWeight: 700, color: th.tx,
+        background: open ? th.sf2 : th.sf, border: '1px solid ' + (open ? th.accent : th.bd),
+        borderRadius: 9999, padding: '8px 12px', cursor: 'pointer', transition: 'border-color .15s',
+      }}>
+        <span style={{ flex: 1, textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cur.name}</span>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ color: th.faint, flex: '0 0 auto', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 60 }} />
+          <div role="listbox" className="wc-league-menu" style={{
+            zIndex: 61, width: 250, maxWidth: '80vw',
+            background: th.sf, border: '1px solid ' + th.bd, borderRadius: 14, padding: 5,
+            boxShadow: dark ? '0 16px 40px rgba(0,0,0,0.6)' : '0 16px 40px rgba(20,16,50,0.18)',
+          }}>
+            {leagues.map(l => {
+              const on = l.slug === league
+              return (
+                <button key={l.slug} role="option" aria-selected={on} onClick={() => { setLeague(l.slug); setOpen(false) }}
+                  onMouseEnter={e => { if (!on) e.currentTarget.style.background = th.sf2 }}
+                  onMouseLeave={e => { if (!on) e.currentTarget.style.background = 'transparent' }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 9, width: '100%',
+                    border: 'none', cursor: 'pointer', font: 'inherit', textAlign: 'left',
+                    padding: '9px 11px', borderRadius: 9, background: on ? th.accentSoft : 'transparent',
+                  }}>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: on ? 800 : 650, color: on ? th.accent : th.tx, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name}</span>
+                  <span style={{ flex: '0 0 auto', fontSize: 11.5, fontWeight: 600, color: th.faint }}>{l.country}</span>
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
 
 export function Header() {
   const { th, dark, view, setView, toggleDark, D, notify, notifySupported, toggleNotify } = useStore()
+  const tabs = D.grouped ? TABS_GROUPED : TABS_LEAGUE
 
   const navBtn = ([id, label]) => {
     const on = view === id
@@ -31,17 +94,18 @@ export function Header() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
             <BallMark color={th.accent} />
             <div style={{ lineHeight: 1.05 }}>
-              <div style={{ fontWeight: 850, fontSize: 17, letterSpacing: '-0.02em', color: th.tx }}>
-                World Cup <span style={{ color: th.accent }}>26</span>
+              <div style={{ fontWeight: 850, fontSize: 17, letterSpacing: '-0.02em', color: th.tx, whiteSpace: 'nowrap' }}>
+                Follow <span style={{ color: th.accent }}>Soccer</span>
               </div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: th.faint, letterSpacing: '0.02em' }}>{D.HOST}</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: th.faint, letterSpacing: '0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{D.league}</div>
             </div>
           </div>
         </div>
         <div className="wc-scroll wc-hdr-nav" style={{ background: th.sf2 }}>
-          {TABS.map(navBtn)}
+          {tabs.map(navBtn)}
         </div>
         <div className="wc-hdr-actions">
+          <LeagueMenu />
           {notifySupported ? (
             <button onClick={toggleNotify} title={notify ? 'Match alerts on — 15 min before your teams play' : 'Turn on match alerts'} style={{
               width: 38, height: 38, borderRadius: '50%', border: '1px solid ' + (notify ? th.accent : th.bd), background: notify ? th.accentSoft : th.sf, cursor: 'pointer',
@@ -65,7 +129,7 @@ export function Header() {
       background: dark ? 'rgba(8,8,12,0.94)' : 'rgba(255,255,255,0.96)',
       borderTop: '1px solid ' + th.bd, backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
     }}>
-      {TABS.map(([id, label]) => {
+      {tabs.map(([id, label]) => {
         const on = view === id
         return (
           <button key={id} onClick={() => setView(id)} aria-label={label} style={{

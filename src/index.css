@@ -25,6 +25,10 @@ body {
 .wc-hdr-nav { display: flex; gap: 2px; overflow-x: auto; padding: 2px; border-radius: 9999px; flex: 0 1 auto; justify-content: center; }
 .wc-hdr-actions { flex: 1 1 0; display: flex; justify-content: flex-end; gap: 8px; }
 
+/* League dropdown popover: anchored to the trigger's right edge, which always sits just
+   left of the fixed bell/theme buttons, so a right-aligned menu stays within the viewport. */
+.wc-league-menu { position: absolute; top: calc(100% + 6px); right: 0; }
+
 /* Bottom tab bar — mobile only. Hidden on desktop (top pills are used there). */
 .wc-bottomnav { display: none; }
 

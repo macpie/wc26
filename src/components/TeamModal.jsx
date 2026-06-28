@@ -160,7 +160,6 @@ export function TeamModal() {
 
   // Squad: the full 26-man roster from ESPN's per-team roster endpoint
   const players = teamSquad ? teamSquad.players : null
-  const coach = teamSquad ? teamSquad.coach : null
   const record = teamSquad ? teamSquad.record : null
   const standing = teamSquad ? teamSquad.standing : null
 
@@ -212,7 +211,7 @@ export function TeamModal() {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 850, fontSize: 20, letterSpacing: '-0.02em', color: th.tx }}>{T.name}</div>
               <div style={{ fontSize: 12, fontWeight: 700, color: th.faint, marginTop: 2 }}>
-                Group {T.g}{record ? ' · ' + record + ' W-D-L' : ''}
+                {T.g ? 'Group ' + T.g : D.league}{record ? ' · ' + record + ' W-D-L' : ''}
               </div>
               {standing && (
                 <div style={{ fontSize: 11, fontWeight: 700, color: th.accent, marginTop: 2 }}>{standing}</div>
@@ -251,7 +250,7 @@ export function TeamModal() {
               : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                   <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: th.faint, letterSpacing: '0.04em' }}>
-                    {players.length}-player squad{coach ? ' · Coach ' + coach : ''}
+                    {players.length}-player squad
                   </div>
                   {posGroups.map(([posKey, posPlayers]) => (
                     <div key={posKey}>
@@ -276,7 +275,7 @@ export function TeamModal() {
                     <div key={m.id}>
                       {/* round label */}
                       <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: th.sub, marginBottom: 4 }}>
-                        {m.stage || (m.g && m.g !== '?' ? 'Group ' + m.g : 'Knockout')}
+                        {m.stage || (m.g && m.g !== '?' ? 'Group ' + m.g : D.league)}
                       </div>
                       <MatchRow m={m} />
                     </div>

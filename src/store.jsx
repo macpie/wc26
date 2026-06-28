@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react'
-import { WC_ESPN } from './data/wc-espn.js'
+import { WC_ESPN, LEAGUES, DEFAULT_LEAGUE } from './data/wc-espn.js'
 import { theme } from './theme.js'
 import { standings as calcStandings, thirdRace as calcThirdRace } from './lib/standings.js'
 
@@ -19,6 +19,8 @@ export function StoreProvider({ children }) {
   const [dark, setDark] = useState(saved.dark || false)
   const [favs, setFavs] = useState(saved.favs || ['USA', 'BRA'])
   const [notify, setNotify] = useState(saved.notify || false) // match alerts (15 min before kickoff)
+  const validLeague = LEAGUES.some(l => l.slug === saved.league) ? saved.league : DEFAULT_LEAGUE
+  const [league, setLeagueState] = useState(validLeague) // ESPN competition slug
 
   // ---- ephemeral UI ----
   const [sel, setSel] = useState(null)
@@ -34,15 +36,16 @@ export function StoreProvider({ children }) {
   const [detail, setDetail] = useState(null)
 
   const pollRef = useRef(null)
-  // live refs so the alert scheduler always reads current data/favs without re-arming
+  // live refs so callbacks always read the current value without re-arming
   const dataRef = useRef(data); dataRef.current = data
   const favsRef = useRef(favs); favsRef.current = favs
+  const leagueRef = useRef(league); leagueRef.current = league
   const notifiedRef = useRef(new Set())
 
   const save = useCallback((patch) => {
-    const next = Object.assign({ view, dark, favs, notify }, patch)
+    const next = Object.assign({ view, dark, favs, notify, league }, patch)
     try { localStorage.setItem(PREFS_KEY, JSON.stringify(next)) } catch (e) {}
-  }, [view, dark, favs, notify])
+  }, [view, dark, favs, notify, league])
 
   const setView = (v) => { setViewState(v); save({ view: v }) }
   const toggleDark = () => { const d = !dark; setDark(d); save({ dark: d }) }
@@ -95,7 +98,7 @@ export function StoreProvider({ children }) {
   const openMatch = (m) => {
     if (!m) return
     setSel(m.id); setModalTab('auto'); setDetail(null)
-    WC_ESPN.detail(m.id)
+    WC_ESPN.detail(m.id, leagueRef.current)
       .then(d => setSel(cur => { if (cur === m.id) setDetail(d); return cur }))
       .catch(() => {})
   }
@@ -112,7 +115,7 @@ export function StoreProvider({ children }) {
       const recent = data.MATCHES
         .filter(m => (m.h === id || m.a === id) && (m.status === 'FT' || m.status === 'LIVE'))
         .slice(-3).reverse().map(m => m.id)
-      WC_ESPN.teamRoster(tid, recent)
+      WC_ESPN.teamRoster(tid, recent, leagueRef.current)
         .then(sq => setSelTeam(cur => { if (cur === id) { setTeamSquad(sq); setTeamSquadLoading(false) } return cur }))
         .catch(() => setSelTeam(cur => { if (cur === id) setTeamSquadLoading(false); return cur }))
     } else {
@@ -121,17 +124,11 @@ export function StoreProvider({ children }) {
   }
   const closeTeam = () => setSelTeam(null)
 
-  const openTeamAndNav = (id) => {
-    setViewState('teams')
-    save({ view: 'teams' })
-    openTeam(id)
-  }
-
   // ---- live data (ESPN) ----
   const refreshScores = useCallback(() => {
     setData(curData => {
       if (!curData) return curData
-      WC_ESPN.refreshLive(curData.MATCHES)
+      WC_ESPN.refreshLive(curData.MATCHES, leagueRef.current)
         .then(r => setData(s => (s ? Object.assign({}, s, { MATCHES: r.matches }) : s)))
         .catch(() => {})
       return curData
@@ -147,12 +144,30 @@ export function StoreProvider({ children }) {
     }, 30000)
   }, [refreshScores])
 
-  const loadLive = useCallback(() => {
+  const loadLive = useCallback((slug) => {
+    const lg = slug || leagueRef.current
     setSource('loading')
-    WC_ESPN.load()
-      .then(d => { setData(d); setSource('live'); startPoll() })
-      .catch(() => { setSource('error') })
+    WC_ESPN.load(lg)
+      .then(d => { if (leagueRef.current !== lg) return; setData(d); setSource('live'); startPoll() })
+      .catch(() => { if (leagueRef.current === lg) setSource('error') })
   }, [startPoll])
+
+  // Switch competitions: persist the choice, clear the old dataset/modals, and reload.
+  // The World Cup is the only grouped competition (Groups/Bracket tabs); club leagues use
+  // the Table tab. Reset the view if the current tab doesn't exist in the target league.
+  const setLeague = (slug) => {
+    if (slug === leagueRef.current || !LEAGUES.some(l => l.slug === slug)) return
+    leagueRef.current = slug
+    setLeagueState(slug)
+    const targetGrouped = slug === 'fifa.world'
+    const viewOk = targetGrouped ? view !== 'table' : (view !== 'groups' && view !== 'bracket')
+    if (viewOk) { save({ league: slug }) }
+    else { setViewState('today'); save({ league: slug, view: 'today' }) }
+    clearInterval(pollRef.current)
+    setSel(null); setSelTeam(null); setDetail(null); setFilter('all')
+    setData(null)
+    loadLive(slug)
+  }
 
   // ---- effects ----
   useEffect(() => {
@@ -197,7 +212,7 @@ export function StoreProvider({ children }) {
     if (!sel || !openMatchLive) return
     const iv = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return
-      WC_ESPN.detail(sel)
+      WC_ESPN.detail(sel, leagueRef.current)
         .then(dt => setSel(cur => { if (cur === sel) setDetail(dt); return cur }))
         .catch(() => {})
     }, 30000)
@@ -214,12 +229,12 @@ export function StoreProvider({ children }) {
   const value = {
     // state
     view, dark, favs, notify, notifySupported, sel, modalTab, filter, source, data, detail,
-    selTeam, teamSquad, teamSquadLoading,
+    selTeam, teamSquad, teamSquadLoading, league, leagues: LEAGUES,
     // accessors
     D, th, t, mScore, standings, thirdRace, detailReady,
     // actions
-    setView, toggleDark, toggleFav, toggleNotify, setFilter, setModalTab,
-    openMatch, closeMatch, openTeam, closeTeam, openTeamAndNav, reload: loadLive,
+    setView, toggleDark, toggleFav, toggleNotify, setFilter, setModalTab, setLeague,
+    openMatch, closeMatch, openTeam, closeTeam, reload: loadLive,
   }
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
 }

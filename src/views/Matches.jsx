@@ -49,7 +49,7 @@ export function Matches() {
         {chip('all', 'All')}
         {chip('live', 'Live')}
         {chip('upcoming', 'Upcoming')}
-        {'ABCDEFGHIJKL'.split('').map(g => chip(g, 'Group ' + g))}
+        {D.grouped ? 'ABCDEFGHIJKL'.split('').map(g => chip(g, 'Group ' + g)) : null}
       </div>
       {order.map(d => (
         <div key={d} ref={d === target ? todayRef : null} style={{ marginBottom: 22, scrollMarginTop: 80 }}>

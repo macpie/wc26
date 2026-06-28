@@ -5,6 +5,7 @@ import { TeamModal } from './components/TeamModal.jsx'
 import { BallMark } from './components/icons.jsx'
 import { Today } from './views/Today.jsx'
 import { Matches } from './views/Matches.jsx'
+import { Table } from './views/Table.jsx'
 import { Groups } from './views/Groups.jsx'
 import { Bracket } from './views/Bracket.jsx'
 import { Stats } from './views/Stats.jsx'
@@ -47,8 +48,9 @@ export default function App() {
   let body
   switch (view) {
     case 'matches': body = <Matches />; break
-    case 'groups': body = <Groups />; break
-    case 'bracket': body = <Bracket />; break
+    case 'table': body = <Table />; break
+    case 'groups': body = data.grouped ? <Groups /> : <Table />; break
+    case 'bracket': body = data.grouped ? <Bracket /> : <Table />; break
     case 'stats': body = <Stats />; break
     case 'teams': body = <Teams />; break
     default: body = <Today />

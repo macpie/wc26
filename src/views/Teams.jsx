@@ -7,7 +7,7 @@ export function Teams() {
   const [q, setQ] = useState('')
 
   const all = Object.values(D.TEAMS)
-    .filter(T => T.g && T.g !== '?')
+    .filter(T => T.ranked || (T.g && T.g !== '?'))
     .sort((a, b) => a.name.localeCompare(b.name))
 
   // Filter by team name, 3-letter code, or group (e.g. "fra", "group b", "b").
@@ -100,7 +100,7 @@ function TeamRow({ id, onOpen }) {
       {/* name + group */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 700, fontSize: 15, color: th.tx, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{T.name}</div>
-        <div style={{ fontSize: 12, color: th.faint, marginTop: 1 }}>Group {T.g}</div>
+        <div style={{ fontSize: 12, color: th.faint, marginTop: 1 }}>{T.g ? 'Group ' + T.g : D.league}</div>
       </div>
 
       {/* accent dot for followed */}

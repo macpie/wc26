@@ -2,7 +2,7 @@ import { useStore } from '../store.jsx'
 import { Wrap, LivePill, Badge, Star } from '../components/atoms.jsx'
 
 function GroupCard({ g }) {
-  const { th, t, favs, openTeamAndNav, standings } = useStore()
+  const { th, t, favs, openTeam, standings } = useStore()
   const s = standings(g)
   const head = ['', 'Team', 'P', 'W', 'D', 'L', 'GD', 'Pts', '']
   return (
@@ -24,7 +24,7 @@ function GroupCard({ g }) {
             const band = r.rank <= 2 ? th.good : (r.rank === 3 ? th.warn : 'transparent')
             const fav = favs.includes(r.id)
             return (
-              <tr key={r.id} onClick={() => openTeamAndNav(r.id)} style={{ cursor: 'pointer', background: fav ? th.accentSoft : 'transparent', borderTop: '1px solid ' + th.bd }}>
+              <tr key={r.id} onClick={() => openTeam(r.id)} style={{ cursor: 'pointer', background: fav ? th.accentSoft : 'transparent', borderTop: '1px solid ' + th.bd }}>
                 <td style={{ padding: 0, width: 4 }}>
                   <div style={{ width: 3, height: 30, background: band, borderRadius: 9999, margin: '0 auto' }} />
                 </td>

@@ -4,7 +4,7 @@ import { MatchRow } from '../components/MatchRow.jsx'
 import { todayLabel, liveClock } from '../lib/util.js'
 
 function FeaturedLive({ m }) {
-  const { th, t, favs, mScore, openMatch } = useStore()
+  const { th, t, D, favs, mScore, openMatch } = useStore()
   const s = mScore(m)
   const ls = { hs: s.hs, as: s.as, minute: s.minute, clock: s.clock }
   const favH = favs.includes(m.h), favA = favs.includes(m.a)
@@ -16,7 +16,7 @@ function FeaturedLive({ m }) {
     }}>
       <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: th.live }} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: th.sub, letterSpacing: '0.04em' }}>{'Group ' + m.g + ' · ' + m.v.split('·')[0]}</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: th.sub, letterSpacing: '0.04em' }}>{[(m.g && m.g !== '?') ? 'Group ' + m.g : null, m.v ? m.v.split('·')[0].trim() : null].filter(Boolean).join(' · ') || D.league}</span>
         <LivePill />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 16 }}>
@@ -42,6 +42,7 @@ function FeaturedLive({ m }) {
 
 function FavCard({ id }) {
   const { th, t, D, mScore, openMatch } = useStore()
+  if (!t(id)) return null
   const next = D.MATCHES.find(m => (m.h === id || m.a === id) && m.status !== 'FT')
   const last = [...D.MATCHES].reverse().find(m => (m.h === id || m.a === id) && mScore(m).hs != null)
   const m = next || last
@@ -51,7 +52,7 @@ function FavCard({ id }) {
         <Badge id={id} size={30} />
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 750, fontSize: 14, color: th.tx }}>{t(id).name}</div>
-          <div style={{ fontSize: 11, color: th.faint, fontWeight: 600 }}>{'Group ' + t(id).g}</div>
+          <div style={{ fontSize: 11, color: th.faint, fontWeight: 600 }}>{t(id).g ? 'Group ' + t(id).g : D.league}</div>
         </div>
         <Star id={id} size={17} />
       </div>
@@ -74,17 +75,23 @@ function FavCard({ id }) {
 }
 
 export function Today() {
-  const { th, dark, D, favs, mScore, setView } = useStore()
+  const { th, dark, D, t, favs, mScore, setView } = useStore()
+  // favs are global across leagues; only show the ones in the current competition
+  const myFavs = favs.filter(id => !!t(id))
   const live = D.MATCHES.filter(m => m.status === 'LIVE')
   const todayDone = D.MATCHES.filter(m => m.date === D.TODAY && m.status === 'FT')
   const todayUp = D.MATCHES.filter(m => m.date === D.TODAY && m.status === 'UP')
   const upcoming = D.MATCHES.filter(m => m.status === 'UP').slice(0, 6)
   const goals = D.MATCHES.reduce((n, m) => { const s = mScore(m); return n + (s.hs != null ? s.hs + s.as : 0) }, 0)
   const playedN = D.MATCHES.filter(m => mScore(m).hs != null).length
-  const eyebrow = 'FIFA World Cup 2026'
+  const teamsN = Object.values(D.TEAMS).filter(x => x.ranked || (x.g && x.g !== '?')).length
+  const eyebrow = D.league
   const heroSub = live.length
-    ? (live.length + ' match' + (live.length > 1 ? 'es' : '') + ' live now · ' + todayUp.length + ' still to kick off today.')
-    : (todayUp.length ? (todayUp.length + ' matches kick off today across the tournament.') : 'Check the Matches tab for upcoming fixtures.')
+    ? (live.length + ' match' + (live.length > 1 ? 'es' : '') + ' live now' + (todayUp.length ? ' · ' + todayUp.length + ' still to kick off today.' : '.'))
+    : (todayUp.length ? (todayUp.length + ' match' + (todayUp.length > 1 ? 'es' : '') + ' on the schedule today.') : 'Check the Matches tab for upcoming fixtures.')
+  const heroStats = [[String(teamsN), 'Teams']]
+  if (D.grouped) heroStats.push([String(Object.keys(D.GROUPS).length), 'Groups'])
+  heroStats.push([playedN + ' / ' + D.MATCHES.length, 'Matches played'], [String(goals), 'Goals scored'])
 
   return (
     <Wrap>
@@ -103,7 +110,7 @@ export function Today() {
           <div style={{ fontSize: 34, fontWeight: 850, letterSpacing: '-0.03em', margin: '10px 0 4px', lineHeight: 1.04 }}>{todayLabel()}</div>
           <div style={{ fontSize: 15, opacity: 0.85, fontWeight: 550, maxWidth: 520 }}>{heroSub}</div>
           <div style={{ display: 'flex', gap: 26, marginTop: 22, flexWrap: 'wrap' }}>
-            {[['48', 'Teams'], ['12', 'Groups'], [playedN + ' / 104', 'Matches played'], [String(goals), 'Goals scored']].map(([n, l], i) => (
+            {heroStats.map(([n, l], i) => (
               <div key={i}>
                 <div style={{ fontSize: 26, fontWeight: 850, letterSpacing: '-0.02em' }}>{n}</div>
                 <div style={{ fontSize: 11.5, fontWeight: 650, opacity: 0.8, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{l}</div>
@@ -122,11 +129,11 @@ export function Today() {
       ) : null}
 
       {/* your teams */}
-      {favs.length ? (
+      {myFavs.length ? (
         <div>
           <SectionTitle label="Your teams" />
           <div className="wc-scroll" style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 8, marginBottom: 26 }}>
-            {favs.map(id => <FavCard key={id} id={id} />)}
+            {myFavs.map(id => <FavCard key={id} id={id} />)}
           </div>
         </div>
       ) : null}

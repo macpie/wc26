@@ -5,14 +5,14 @@ import { txtOn } from '../lib/util.js'
 // Clicking it navigates to the Teams page and opens that team's profile modal.
 // Pass follow=false in contexts where click should be a no-op (e.g. inside TeamModal itself).
 export function Badge({ id, size = 30, follow = true }) {
-  const { t, D, th, favs, openTeamAndNav } = useStore()
+  const { t, D, th, favs, openTeam } = useStore()
   const T = t(id)
   if (!T) return null
   const crest = D.CRESTS && D.CRESTS[id]
-  const clickable = follow && T.g && T.g !== '?'
+  const clickable = follow && (T.ranked || (T.g && T.g !== '?'))
   const on = favs.includes(id)
   const fx = clickable ? {
-    onClick: (e) => { e.stopPropagation(); openTeamAndNav(id) },
+    onClick: (e) => { e.stopPropagation(); openTeam(id) },
     title: 'View ' + T.name,
   } : {}
   const cursor = clickable ? 'pointer' : 'inherit'

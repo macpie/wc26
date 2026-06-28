@@ -272,7 +272,7 @@ export function MatchModal() {
         <div style={{ padding: '18px 22px', borderBottom: '1px solid ' + th.bd, position: 'relative' }}>
           <button onClick={closeMatch} style={{ position: 'absolute', right: 14, top: 14, width: 32, height: 32, borderRadius: '50%', border: '1px solid ' + th.bd, background: th.sf2, cursor: 'pointer', color: th.sub, fontSize: 18, lineHeight: 1 }}>×</button>
           <div style={{ textAlign: 'center', fontSize: 11.5, fontWeight: 700, color: th.faint, letterSpacing: '0.04em' }}>
-            {(m.g && m.g !== '?' ? 'Group ' + m.g : (m.stage || 'Knockout')) + (m.v ? ' · ' + m.v : '')}
+            {[(m.g && m.g !== '?') ? 'Group ' + m.g : m.stage, m.v].filter(Boolean).join(' · ') || D.league}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 14, marginTop: 14 }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>

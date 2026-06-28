@@ -12,13 +12,25 @@
 
    Exposes: load(), refreshLive(matches), detail(matchId). */
 
-const HOST = 'USA · Canada · Mexico'
+// Leagues offered in the app's switcher. Slugs are ESPN soccer competition paths.
+export const LEAGUES = [
+  { slug: 'fifa.world', name: 'World Cup', country: 'International', flag: '🌍' },
+  { slug: 'eng.1', name: 'Premier League', country: 'England', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
+  { slug: 'esp.1', name: 'La Liga', country: 'Spain', flag: '🇪🇸' },
+  { slug: 'ita.1', name: 'Serie A', country: 'Italy', flag: '🇮🇹' },
+  { slug: 'ger.1', name: 'Bundesliga', country: 'Germany', flag: '🇩🇪' },
+  { slug: 'fra.1', name: 'Ligue 1', country: 'France', flag: '🇫🇷' },
+  { slug: 'usa.1', name: 'MLS', country: 'USA', flag: '🇺🇸' },
+  { slug: 'mex.1', name: 'Liga MX', country: 'Mexico', flag: '🇲🇽' },
+  { slug: 'uefa.champions', name: 'Champions League', country: 'Europe', flag: '🇪🇺' },
+]
+export const DEFAULT_LEAGUE = 'fifa.world'
+const leagueName = slug => (LEAGUES.find(l => l.slug === slug) || {}).name || 'Soccer'
 
-const SITE = 'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world'
-const SITE_V2 = 'https://site.api.espn.com/apis/v2/sports/soccer/fifa.world'
-const CORE = 'https://sports.core.api.espn.com/v2/sports/soccer/leagues/fifa.world'
-const SEASON = 2026
-const SCHEDULE_RANGE = '20260611-20260719' // full tournament window
+const SITE = slug => 'https://site.api.espn.com/apis/site/v2/sports/soccer/' + slug
+const SITE_V2 = slug => 'https://site.api.espn.com/apis/v2/sports/soccer/' + slug
+const CORE = slug => 'https://sports.core.api.espn.com/v2/sports/soccer/leagues/' + slug
+const ymd = d => { const x = new Date(d); return '' + x.getFullYear() + String(x.getMonth() + 1).padStart(2, '0') + String(x.getDate()).padStart(2, '0') }
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -28,6 +40,9 @@ const mapState = s => s === 'in' ? 'LIVE' : s === 'post' ? 'FT' : 'UP'
 const ROUND_LABEL = { 'round-of-32': 'Round of 32', 'round-of-16': 'Round of 16', quarterfinals: 'Quarter-final', semifinals: 'Semi-final', '3rd-place-match': 'Third place', final: 'Final' }
 const hex = (c, fallback) => !c ? fallback : (String(c)[0] === '#' ? c : '#' + c)
 const code3 = t => String((t && t.abbreviation) || '').toUpperCase()
+// Stable per-team key: 3-letter code when available, else the ESPN team id. Clubs always
+// have an abbreviation, but this guards leagues/teams where it may be missing.
+const teamKey = t => code3(t) || (t && t.id != null ? 'T' + t.id : '')
 // ESPN's ready-made live clock string, e.g. "49'", "45'+4'", "90'+3'", "HT".
 const clockOf = ev => { const st = ev && ev.status; const dc = st && (st.displayClock || (st.type && (st.type.shortDetail || st.type.detail))); const s = String(dc || '').trim(); return s || null }
 // Numeric minute (base + added time) for logic/sorting, e.g. "45'+4'" → 49. Note: a naive
@@ -61,7 +76,7 @@ function mapMatch(ev, codeToGroup, idToCode, TEAMS, CRESTS) {
   const { home, away } = competitors(c)
   const reg = (comp) => {
     const t = comp.team || {}
-    const code = code3(t)
+    const code = teamKey(t)
     if (!code) return code
     if (t.id != null) idToCode[t.id] = code
     if (!TEAMS[code]) {
@@ -85,7 +100,8 @@ function mapMatch(ev, codeToGroup, idToCode, TEAMS, CRESTS) {
   const v = [venue.fullName, venue.address && venue.address.city].filter(Boolean).join(' · ')
   const score = (comp) => (state === 'pre' || comp.score == null || comp.score === '') ? null : Number(comp.score)
   const round = (ev.season && ev.season.slug) || null
-  const stage = grp !== '?' ? null : (ROUND_LABEL[round] || 'Knockout')
+  // Stage label only applies to WC knockout slugs; league matches have no stage.
+  const stage = grp !== '?' ? null : (ROUND_LABEL[round] || null)
   // a side is "known" (a real qualified team) when its code maps to a group; otherwise it's
   // a placeholder slot (e.g. "Group L Winner", "Third Place Group C/E/F/H/I").
   const nameOf = (comp) => (comp.team && (comp.team.displayName || comp.team.shortDisplayName)) || ''
@@ -116,8 +132,8 @@ function teamCodeFromRef(ref, idToCode) {
   return (tid && idToCode[tid]) || 'UNK'
 }
 
-async function loadLeaders(idToCode) {
-  const lj = await getJSON(CORE + '/seasons/' + SEASON + '/types/1/leaders')
+async function loadLeaders(idToCode, slug, year) {
+  const lj = await getJSON(CORE(slug) + '/seasons/' + year + '/types/1/leaders')
   const byName = {}
   ;(lj.categories || []).forEach(c => { byName[c.name] = c.leaders || [] })
 
@@ -145,55 +161,82 @@ async function loadLeaders(idToCode) {
   return LEADERS
 }
 
-export async function load() {
+const statVal = (stats, name) => { const s = (stats || []).find(x => x.name === name); return s ? Number(s.value) || 0 : 0 }
+
+export async function load(slug = DEFAULT_LEAGUE) {
+  // First call yields the season window (for the full fixture list) and current events.
+  const sb0 = await getJSON(SITE(slug) + '/scoreboard')
+  const season = (sb0.leagues && sb0.leagues[0] && sb0.leagues[0].season) || {}
+  const year = season.year || new Date().getFullYear()
+  const range = (season.startDate && season.endDate) ? ymd(season.startDate) + '-' + ymd(season.endDate) : null
+
   const [sb, st] = await Promise.all([
-    getJSON(SITE + '/scoreboard?dates=' + SCHEDULE_RANGE + '&limit=400'),
-    getJSON(SITE_V2 + '/standings').catch(() => null),
+    range ? getJSON(SITE(slug) + '/scoreboard?dates=' + range + '&limit=600').catch(() => sb0) : Promise.resolve(sb0),
+    getJSON(SITE_V2(slug) + '/standings').catch(() => null),
   ])
 
   const codeToGroup = {}, idToCode = {}, GROUPS = {}, TEAMS = {}, CRESTS = {}
 
-  // groups + memberships from the standings tree
+  // Standings tree shapes: WC = 12 "Group" children; MLS = 2 conference children; most
+  // leagues = a single table child; UCL = one league-phase child.
+  //  - multiSection (>1 child) → ranks are per-section, so build the flat table by points.
+  //  - grouped (children literally named "Group …") → show group chips/labels (WC only).
   const children = (st && st.children) || []
+  const multiSection = children.length > 1
+  let grouped = false
+  const rows = []
   children.forEach(ch => {
-    const letter = String(ch.abbreviation || ch.name || '').replace(/group/i, '').trim().toUpperCase().slice(0, 2)
+    const isGroup = /group/i.test(String(ch.name || '') + ' ' + String(ch.abbreviation || ''))
+    if (isGroup) grouped = true
+    const letter = isGroup ? String(ch.abbreviation || ch.name || '').replace(/group/i, '').trim().toUpperCase().slice(0, 2) : ''
     const entries = (ch.standings && ch.standings.entries) || []
     entries.forEach(e => {
       const t = e.team || {}
-      const code = code3(t)
+      const code = teamKey(t)
       if (!code) return
-      codeToGroup[code] = letter
       if (t.id != null) idToCode[t.id] = code
-      GROUPS[letter] = GROUPS[letter] || []
-      if (!GROUPS[letter].includes(code)) GROUPS[letter].push(code)
-      if (!TEAMS[code]) TEAMS[code] = { name: t.displayName || code, code, tid: t.id != null ? String(t.id) : null, g: letter, c: '#5F26FC', c2: '#111111' }
-      else if (t.id != null && !TEAMS[code].tid) TEAMS[code].tid = String(t.id)
+      if (letter) {
+        codeToGroup[code] = letter
+        GROUPS[letter] = GROUPS[letter] || []
+        if (!GROUPS[letter].includes(code)) GROUPS[letter].push(code)
+      }
+      if (!TEAMS[code]) TEAMS[code] = { name: t.displayName || code, code, tid: t.id != null ? String(t.id) : null, g: letter, ranked: true, c: hex(t.color, '#5F26FC'), c2: hex(t.alternateColor, '#111111') }
+      else { TEAMS[code].ranked = true; if (letter) TEAMS[code].g = letter; if (t.id != null && !TEAMS[code].tid) TEAMS[code].tid = String(t.id) }
+      const logo = (t.logos && t.logos[0] && t.logos[0].href) || t.logo
+      if (logo) CRESTS[code] = logo
+      rows.push({
+        code, g: letter, rank: statVal(e.stats, 'rank'),
+        P: statVal(e.stats, 'gamesPlayed'), W: statVal(e.stats, 'wins'), D: statVal(e.stats, 'ties'), L: statVal(e.stats, 'losses'),
+        GF: statVal(e.stats, 'pointsFor'), GA: statVal(e.stats, 'pointsAgainst'), GD: statVal(e.stats, 'pointDifferential'), Pts: statVal(e.stats, 'points'),
+      })
     })
   })
+  // Single-table leagues keep ESPN's official rank (it encodes tiebreakers); multi-section
+  // competitions (WC groups, MLS conferences) are merged into one table sorted by points.
+  if (multiSection) rows.sort((a, b) => b.Pts - a.Pts || b.GD - a.GD || b.GF - a.GF)
+  else rows.sort((a, b) => (a.rank || 99) - (b.rank || 99))
+  rows.forEach((r, i) => { r.pos = i + 1 })
 
   const MATCHES = (sb.events || []).map(ev => mapMatch(ev, codeToGroup, idToCode, TEAMS, CRESTS))
 
-  // derive GROUPS from matches if standings was unavailable
-  if (!Object.keys(GROUPS).length) {
+  // derive GROUPS from matches if standings was unavailable (WC fallback)
+  if (grouped && !Object.keys(GROUPS).length) {
     MATCHES.forEach(m => { if (m.g && m.g !== '?') { GROUPS[m.g] = GROUPS[m.g] || []; [m.h, m.a].forEach(code => { if (!GROUPS[m.g].includes(code)) GROUPS[m.g].push(code) }) } })
   }
 
   let LEADERS = {}
-  try { LEADERS = await loadLeaders(idToCode) } catch (e) { /* leave empty */ }
+  try { LEADERS = await loadLeaders(idToCode, slug, year) } catch (e) { /* leave empty */ }
 
   return {
-    TEAMS,
-    CRESTS,
-    GROUPS,
-    MATCHES,
-    LEADERS,
-    HOST,
+    slug, league: leagueName(slug), grouped,
+    TEAMS, CRESTS, GROUPS, STANDINGS: rows, MATCHES, LEADERS,
+    HOST: leagueName(slug),
     TODAY: fmtDate(new Date()),
   }
 }
 
-export async function refreshLive(matches) {
-  const sb = await getJSON(SITE + '/scoreboard') // current matchday is enough for live scores
+export async function refreshLive(matches, slug = DEFAULT_LEAGUE) {
+  const sb = await getJSON(SITE(slug) + '/scoreboard') // current matchday is enough for live scores
   const fresh = {}
   ;(sb.events || []).forEach(ev => {
     const c = (ev.competitions && ev.competitions[0]) || {}
@@ -233,15 +276,15 @@ function clockMin(clock) {
   return (parseInt(mm[1], 10) || 0) + (mm[2] ? parseInt(mm[2], 10) / 100 : 0)
 }
 
-export async function detail(matchId) {
+export async function detail(matchId, slug = DEFAULT_LEAGUE) {
   const out = { id: String(matchId), events: null, lineups: null, stats: null, commentary: null, gameInfo: null, form: null, h2h: null, broadcasts: null }
   let sj
-  try { sj = await getJSON(SITE + '/summary?event=' + matchId) } catch (e) { return out }
+  try { sj = await getJSON(SITE(slug) + '/summary?event=' + matchId) } catch (e) { return out }
 
   const idToCode = {}
   const comp = (sj.header && sj.header.competitions && sj.header.competitions[0]) || {}
-  ;((comp.competitors) || []).forEach(c => { const t = c.team || {}; if (t.id != null) idToCode[t.id] = code3(t) })
-  const codeFor = (team) => (team && team.id != null && idToCode[team.id]) || code3(team)
+  ;((comp.competitors) || []).forEach(c => { const t = c.team || {}; if (t.id != null) idToCode[t.id] = teamKey(t) })
+  const codeFor = (team) => (team && team.id != null && idToCode[team.id]) || teamKey(team)
   const nameOfP = (p) => (p && p.athlete && (p.athlete.displayName || p.athlete.shortName)) || ''
 
   // full event timeline: goals, cards, subs, penalties, half/full-time markers
@@ -349,12 +392,12 @@ export async function detail(matchId) {
 // ESPN's WC roster carries no player headshots, so we harvest the real ones it does have
 // from the team's recent match summaries (~15% of players) and key them by athlete id;
 // everyone else falls back to their nationality flag, then jersey number, in the UI.
-export async function teamRoster(teamId, matchIds = []) {
+export async function teamRoster(teamId, matchIds = [], slug = DEFAULT_LEAGUE) {
   if (!teamId) return null
   const [rj, teamJson, ...summaries] = await Promise.all([
-    getJSON(SITE + '/teams/' + teamId + '/roster'),
-    getJSON(SITE + '/teams/' + teamId).catch(() => null),
-    ...matchIds.slice(0, 3).map(id => getJSON(SITE + '/summary?event=' + id).catch(() => null)),
+    getJSON(SITE(slug) + '/teams/' + teamId + '/roster'),
+    getJSON(SITE(slug) + '/teams/' + teamId).catch(() => null),
+    ...matchIds.slice(0, 3).map(id => getJSON(SITE(slug) + '/summary?event=' + id).catch(() => null)),
   ])
 
   // real headshots by athlete id, gathered from match summaries
@@ -391,10 +434,8 @@ export async function teamRoster(teamId, matchIds = []) {
     }
   })
 
-  // ESPN lists coaches historically (oldest→newest); the last entry is the current one.
-  const coaches = rj.coach || []
-  const cc = coaches[coaches.length - 1]
-  const coach = cc ? [cc.firstName, cc.lastName].filter(Boolean).join(' ') : null
+  // NB: ESPN's roster `coach` field is stale (frozen ~2012-2016 for clubs) with no current
+  // source, so we deliberately don't surface a coach name — it would be misleading.
 
   // record (W-D-L) + standing blurb from the team detail endpoint
   const T = teamJson && teamJson.team
@@ -403,8 +444,8 @@ export async function teamRoster(teamId, matchIds = []) {
   const record = (rec && rec.summary) || null
   const standing = (T && T.standingSummary) || null
 
-  return { players, coach, record, standing }
+  return { players, record, standing }
 }
 
-export const WC_ESPN = { provider: 'ESPN', load, refreshLive, detail, teamRoster }
+export const WC_ESPN = { provider: 'ESPN', load, refreshLive, detail, teamRoster, LEAGUES, DEFAULT_LEAGUE }
 export default WC_ESPN
