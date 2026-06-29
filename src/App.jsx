@@ -50,7 +50,7 @@ export default function App() {
     case 'matches': body = <Matches />; break
     case 'table': body = <Table />; break
     case 'groups': body = data.grouped ? <Groups /> : <Table />; break
-    case 'bracket': body = data.grouped ? <Bracket /> : <Table />; break
+    case 'bracket': body = (data.grouped || data.bracket) ? <Bracket /> : <Table />; break
     case 'stats': body = <Stats />; break
     case 'teams': body = <Teams />; break
     default: body = <Today />

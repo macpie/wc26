@@ -152,16 +152,21 @@ export function StoreProvider({ children }) {
       .catch(() => { if (leagueRef.current === lg) setSource('error') })
   }, [startPoll])
 
+  // Which tabs each competition shape exposes (the World Cup has groups + bracket, the
+  // Champions League a bracket + table, plain leagues just a table). Used to reset the view
+  // when switching to a league where the current tab doesn't exist.
+  const viewsFor = (slug) => {
+    if (slug === 'fifa.world') return ['today', 'matches', 'bracket', 'groups', 'stats', 'teams']
+    if (slug === 'uefa.champions') return ['today', 'matches', 'bracket', 'table', 'stats', 'teams']
+    return ['today', 'matches', 'table', 'stats', 'teams']
+  }
+
   // Switch competitions: persist the choice, clear the old dataset/modals, and reload.
-  // The World Cup is the only grouped competition (Groups/Bracket tabs); club leagues use
-  // the Table tab. Reset the view if the current tab doesn't exist in the target league.
   const setLeague = (slug) => {
     if (slug === leagueRef.current || !LEAGUES.some(l => l.slug === slug)) return
     leagueRef.current = slug
     setLeagueState(slug)
-    const targetGrouped = slug === 'fifa.world'
-    const viewOk = targetGrouped ? view !== 'table' : (view !== 'groups' && view !== 'bracket')
-    if (viewOk) { save({ league: slug }) }
+    if (viewsFor(slug).includes(view)) { save({ league: slug }) }
     else { setViewState('today'); save({ league: slug, view: 'today' }) }
     clearInterval(pollRef.current)
     setSel(null); setSelTeam(null); setDetail(null); setFilter('all')

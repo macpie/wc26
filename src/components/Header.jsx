@@ -2,8 +2,12 @@ import { useState, useEffect } from 'react'
 import { useStore } from '../store.jsx'
 import { BallMark, SunIcon, MoonIcon, BellIcon, TabIcon } from './icons.jsx'
 
-// World Cup keeps its Groups + Bracket tabs; club leagues get a single Table tab instead.
+// Tab sets by competition shape:
+//  - grouped (World Cup): Groups + Bracket
+//  - cup with a knockout bracket but no groups (Champions League): Table + Bracket
+//  - plain league: Table only
 const TABS_GROUPED = [['today', 'Today'], ['matches', 'Matches'], ['bracket', 'Bracket'], ['groups', 'Groups'], ['stats', 'Stats'], ['teams', 'Teams']]
+const TABS_CUP = [['today', 'Today'], ['matches', 'Matches'], ['bracket', 'Bracket'], ['table', 'Table'], ['stats', 'Stats'], ['teams', 'Teams']]
 const TABS_LEAGUE = [['today', 'Today'], ['matches', 'Matches'], ['table', 'Table'], ['stats', 'Stats'], ['teams', 'Teams']]
 
 // Custom league dropdown: each row shows the league name on the left and its country on
@@ -67,7 +71,7 @@ function LeagueMenu() {
 
 export function Header() {
   const { th, dark, view, setView, toggleDark, D, notify, notifySupported, toggleNotify } = useStore()
-  const tabs = D.grouped ? TABS_GROUPED : TABS_LEAGUE
+  const tabs = D.grouped ? TABS_GROUPED : (D.bracket ? TABS_CUP : TABS_LEAGUE)
 
   const navBtn = ([id, label]) => {
     const on = view === id

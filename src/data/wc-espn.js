@@ -15,6 +15,7 @@
 // Leagues offered in the app's switcher. Slugs are ESPN soccer competition paths.
 export const LEAGUES = [
   { slug: 'fifa.world', name: 'World Cup', country: 'International', flag: '🌍' },
+  { slug: 'uefa.champions', name: 'Champions League', country: 'Europe', flag: '🇪🇺' },
   { slug: 'eng.1', name: 'Premier League', country: 'England', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
   { slug: 'esp.1', name: 'La Liga', country: 'Spain', flag: '🇪🇸' },
   { slug: 'ita.1', name: 'Serie A', country: 'Italy', flag: '🇮🇹' },
@@ -22,7 +23,6 @@ export const LEAGUES = [
   { slug: 'fra.1', name: 'Ligue 1', country: 'France', flag: '🇫🇷' },
   { slug: 'usa.1', name: 'MLS', country: 'USA', flag: '🇺🇸' },
   { slug: 'mex.1', name: 'Liga MX', country: 'Mexico', flag: '🇲🇽' },
-  { slug: 'uefa.champions', name: 'Champions League', country: 'Europe', flag: '🇪🇺' },
 ]
 export const DEFAULT_LEAGUE = 'fifa.world'
 const leagueName = slug => (LEAGUES.find(l => l.slug === slug) || {}).name || 'Soccer'
@@ -37,7 +37,7 @@ const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const fmtDate = d => (!d || isNaN(d)) ? null : DOW[d.getDay()] + ' ' + MON[d.getMonth()] + ' ' + d.getDate()
 const fmtTime = d => { if (!d || isNaN(d)) return null; let h = d.getHours(), m = d.getMinutes(), ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return h + ':' + String(m).padStart(2, '0') + ' ' + ap }
 const mapState = s => s === 'in' ? 'LIVE' : s === 'post' ? 'FT' : 'UP'
-const ROUND_LABEL = { 'round-of-32': 'Round of 32', 'round-of-16': 'Round of 16', quarterfinals: 'Quarter-final', semifinals: 'Semi-final', '3rd-place-match': 'Third place', final: 'Final' }
+const ROUND_LABEL = { 'round-of-32': 'Round of 32', 'knockout-round-playoffs': 'Play-off', 'round-of-16': 'Round of 16', quarterfinals: 'Quarter-final', semifinals: 'Semi-final', '3rd-place-match': 'Third place', final: 'Final' }
 const hex = (c, fallback) => !c ? fallback : (String(c)[0] === '#' ? c : '#' + c)
 const code3 = t => String((t && t.abbreviation) || '').toUpperCase()
 // Stable per-team key: 3-letter code when available, else the ESPN team id. Clubs always
@@ -108,7 +108,10 @@ function mapMatch(ev, codeToGroup, idToCode, TEAMS, CRESTS) {
   return {
     id: String(ev.id), g: grp, md: null, h, a,
     hName: nameOf(home), aName: nameOf(away),
-    hKnown: !!codeToGroup[h], aKnown: !!codeToGroup[a],
+    // "known" = a real qualified team (vs a placeholder slot like "Group L Winner").
+    // Group membership marks it for the WC; the standings `ranked` flag covers UCL knockouts.
+    hKnown: !!(codeToGroup[h] || (TEAMS[h] && TEAMS[h].ranked)),
+    aKnown: !!(codeToGroup[a] || (TEAMS[a] && TEAMS[a].ranked)),
     hs: score(home), as: score(away),
     status,
     date: (when && fmtDate(when)) || 'TBD',
@@ -227,8 +230,11 @@ export async function load(slug = DEFAULT_LEAGUE) {
   let LEADERS = {}
   try { LEADERS = await loadLeaders(idToCode, slug, year) } catch (e) { /* leave empty */ }
 
+  // A competition has a knockout bracket if any match carries a knockout stage label.
+  const bracket = MATCHES.some(m => m.stage)
+
   return {
-    slug, league: leagueName(slug), grouped,
+    slug, league: leagueName(slug), grouped, bracket,
     TEAMS, CRESTS, GROUPS, STANDINGS: rows, MATCHES, LEADERS,
     HOST: leagueName(slug),
     TODAY: fmtDate(new Date()),
