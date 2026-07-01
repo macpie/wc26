@@ -1,6 +1,6 @@
 import { useRef, useState, useLayoutEffect } from 'react'
 import { useStore } from '../store.jsx'
-import { Wrap, Badge } from '../components/atoms.jsx'
+import { Badge } from '../components/atoms.jsx'
 import { dateKey, liveClock } from '../lib/util.js'
 
 const GAP = 46       // horizontal gap between rounds (room for the connector elbows)
@@ -176,7 +176,8 @@ export function Bracket() {
   }, [D.slug, D.MATCHES.length, columns.length])
 
   return (
-    <Wrap>
+    // full-bleed (not the 1120px page container) so the whole bracket fits on wide screens
+    <div style={{ padding: '26px 22px 90px', animation: 'wcFade .25s ease' }}>
       <div style={{ marginBottom: 18, fontSize: 13, color: th.sub, fontWeight: 550 }}>
         Knockout fixtures from the live schedule — kickoff times included. Decided matchups show teams and scores; undecided slots fill in as earlier rounds finish. Scroll →
       </div>
@@ -205,6 +206,6 @@ export function Bracket() {
       ) : (
         <div style={{ padding: '30px 0', color: th.faint, fontWeight: 600 }}>Knockout fixtures will appear once they’re scheduled.</div>
       )}
-    </Wrap>
+    </div>
   )
 }
